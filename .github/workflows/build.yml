@@ -1,27 +1,56 @@
-name: Build
+name: Build Emby Plugin
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allows manual triggering
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v2
-      
-    - name: Set up Node.js
-      uses: actions/setup-node@v2
-      with:
-        node-version: '14'
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-    - name: Install dependencies
-      run: npm install
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '6.0.x'
+
+    - name: Restore dependencies
+      run: dotnet restore src/FlagMyCountry.sln
 
     - name: Build
-      run: npm run build
+      run: dotnet build src/FlagMyCountry.sln -c Release --no-restore
+
+    - name: List build output
+      run: find src -name "*.dll" -type f
+
+    - name: Get artifact path
+      id: get_path
+      run: |
+        PLUGIN_PATH=$(find src -name "FlagMyCountry.dll" -type f)
+        echo "PLUGIN_PATH=$PLUGIN_PATH" >> $GITHUB_ENV
+        echo "Found plugin at: $PLUGIN_PATH"
+
+    - name: Create artifact directory
+      run: mkdir -p ./artifacts
+
+    - name: Copy artifact
+      run: cp ${{ env.PLUGIN_PATH }} ./artifacts/FlagMyCountry.dll
 
     - name: Upload artifact
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
-        name: build-artifacts
-        path: path/to/build
+        name: FlagMyCountry-plugin
+        path: ./artifacts/FlagMyCountry.dll
+
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: ${{ env.PLUGIN_PATH }}
+        token: ${{ secrets.GITHUB_TOKEN }}
