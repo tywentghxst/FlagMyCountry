@@ -27,8 +27,6 @@ jobs:
     - name: Verify Build Output
       run: ls -la src/FlagMyCountry/bin/Release/netstandard2.0/
     name: Build Emby Plugin
-
-on:
   push:
     branches:
       - main
