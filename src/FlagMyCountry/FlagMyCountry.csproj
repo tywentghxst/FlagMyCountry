@@ -1,1 +1,24 @@
->�#y�Rv
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;</TargetFrameworks>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="mediabrowser.server.core" Version="4.8.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="Images\*.png" />
+    <EmbeddedResource Include="Images\*.png" />
+    <None Remove="Configuration\*.html" />
+    <EmbeddedResource Include="Configuration\*.html" />
+    <None Remove="Configuration\*.js" />
+    <EmbeddedResource Include="Configuration\*.js" />
+    <None Remove="Configuration\*.css" />
+    <EmbeddedResource Include="Configuration\*.css" />
+  </ItemGroup>
+
+</Project>
