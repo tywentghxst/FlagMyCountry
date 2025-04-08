@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Flag My Country Settings</title>
+</head>
+<body>
+    <div id="flagMyCountryConfigurationPage" data-role="page" class="page type-interior pluginConfigurationPage">
+        <div data-role="content">
+            <div class="content-primary">
+                <form id="flagMyCountryForm">
+                    <div class="verticalSection">
+                        <h1>Flag My Country</h1>
+                        <p>Overlay national flags on media content based on language.</p>
+                    </div>
+
+                    <div class="verticalSection">
+                        <h2 class="sectionTitle">Flag Display Settings</h2>
+
+                        <div class="inputContainer">
+                            <label for="flagPosition">Flag Position:</label>
+                            <select id="flagPosition" name="flagPosition">
+                                <option value="0">Top Left</option>
+                                <option value="1">Top Right</option>
+                                <option value="2">Bottom Left</option>
+                                <option value="3">Bottom Right</option>
+                            </select>
+                        </div>
+
+                        <div class="inputContainer">
+                            <label for="flagSize">Flag Size (pixels):</label>
+                            <input type="range" id="flagSize" name="flagSize" min="16" max="128" step="4" value="48" />
+                            <div id="flagSizeDisplay">48</div>
+                        </div>
+                    </div>
+
+                    <div class="verticalSection languageMappingsSection">
+                        <h2 class="sectionTitle">Language Mappings</h2>
+                        <p>Map language codes to country flags.</p>
+
+                        <div class="mappingsTable">
+                            <table class="tblLanguageMappings">
+                                <thead>
+                                    <tr>
+                                        <th>Language</th>
+                                        <th>Language Code</th>
+                                        <th>Country Code</th>
+                                        <th>Preview</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="languageMappingsBody">
+                                    <!-- Rows will be added dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <button type="button" id="btnAddLanguage" class="raised submit block">
+                            <i class="md-icon button-icon">add</i>
+                            <span>Add Language/Flag</span>
+                        </button>
+                    </div>
+
+                    <br />
+                    <div>
+                        <button type="submit" is="emby-button" class="raised button-submit block">
+                            <i class="md-icon button-icon">check</i>
+                            <span>Save</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Template for new language row -->
+        <template id="languageRowTemplate">
+            <tr class="languageRow">
+                <td>
+                    <input type="text" class="languageName" placeholder="Language Name" required />
+                </td>
+                <td>
+                    <input type="text" class="languageCode" placeholder="en" required />
+                </td>
+                <td>
+                    <input type="text" class="countryCode" placeholder="us" required maxlength="2" />
+                </td>
+                <td class="flagPreview">
+                    <!-- Flag preview will go here -->
+                </td>
+                <td>
+                    <button type="button" class="btnDeleteLanguage raised mini">
+                        <i class="md-icon button-icon">delete</i>
+                    </button>
+                </td>
+            </tr>
+        </template>
+
+        <!-- Add Language Dialog -->
+        <div id="addLanguageDialog" class="dialog" style="display: none;">
+            <div class="dialogHeader">
+                <h2>Add Language</h2>
+            </div>
+            <div class="dialogContent">
+                <div class="inputContainer">
+                    <label for="newLanguageName">Language Name:</label>
+                    <input type="text" id="newLanguageName" required />
+                </div>
+                <div class="inputContainer">
+                    <label for="newLanguageCode">Language Code (e.g., en, fr):</label>
+                    <input type="text" id="newLanguageCode" required />
+                </div>
+                <div class="inputContainer">
+                    <label for="newCountryCode">Country Code (e.g., us, fr):</label>
+                    <input type="text" id="newCountryCode" required maxlength="2" />
+                </div>
+                <div class="flagPreviewContainer">
+                    <label>Flag Preview:</label>
+                    <div id="newFlagPreview"></div>
+                </div>
+            </div>
+            <div class="dialogFooter">
+                <button id="btnCancelAddLanguage" type="button">Cancel</button>
+                <button id="btnConfirmAddLanguage" type="button">Add</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        var FlagMyCountryConfig = {
+            pluginId: '{{pluginId}}',
+
+            // Load the configuration from the server
+            load: function(view) {
+                Dashboard.showLoadingMsg();
+
+                ApiClient.getPluginConfiguration(FlagMyCountryConfig.pluginId).then(function(config) {
+                    // Set flag position
+                    view.querySelector('#flagPosition').value = config.Position;
+
+                    // Set flag size
+                    var flagSizeInput = view.querySelector('#flagSize');
+                    flagSizeInput.value = config.FlagSize;
+                    view.querySelector('#flagSizeDisplay').innerHTML = config.FlagSize;
+
+                    // Set up flag size slider
+                    flagSizeInput.addEventListener('input', function() {
+                        view.querySelector('#flagSizeDisplay').innerHTML = this.value;
+                    });
+
+                    // Populate language mappings
+                    var languageMappingsBody = view.querySelector('#languageMappingsBody');
+                    languageMappingsBody.innerHTML = '';
+
+                    if (config.LanguageMappings && config.LanguageMappings.length > 0) {
+                        config.LanguageMappings.forEach(function(mapping) {
+                            FlagMyCountryConfig.addLanguageRow(view, mapping);
+                        });
+                    }
+
+                    // Set up add button
+                    view.querySelector('#btnAddLanguage').addEventListener('click', function() {
+                        FlagMyCountryConfig.showAddLanguageDialog(view);
+                    });
+
+                    // Set up form submission
+                    view.querySelector('#flagMyCountryForm').addEventListener('submit', function(e) {
+                        e.preventDefault();
+                        FlagMyCountryConfig.save(view);
+                    });
+
+                    Dashboard.hideLoadingMsg();
+                });
+            },
+
+            // Save the configuration to the server
+            save: function(view) {
+                Dashboard.showLoadingMsg();
+
+                var config = {
+                    Position: parseInt(view.querySelector('#flagPosition').value),
+                    FlagSize: parseInt(view.querySelector('#flagSize').value),
+                    LanguageMappings: []
+                };
+
+                // Collect language mappings
+                var rows = view.querySelectorAll('.languageRow');
+                rows.forEach(function(row) {
+                    var languageName = row.querySelector('.languageName').value;
+                    var languageCode = row.querySelector('.languageCode').value;
+                    var countryCode = row.querySelector('.countryCode').value;
+
+                    if (languageName && languageCode && countryCode) {
+                        config.LanguageMappings.push({
+                            Language: languageName,
+                            LanguageCode: languageCode,
+                            CountryCode: countryCode
+                        });
+                    }
+                });
+
+                ApiClient.updatePluginConfiguration(FlagMyCountryConfig.pluginId, config).then(function() {
+                    Dashboard.processPluginConfigurationUpdateResult();
+                });
+            },
+
+            // Add a new language row to the table
+            addLanguageRow: function(view, mapping) {
+                var template = view.querySelector('#languageRowTemplate');
+                var clone = document.importNode(template.content, true);
+                var row = clone.querySelector('tr');
+
+                row.querySelector('.languageName').value = mapping.Language || '';
+                row.querySelector('.languageCode').value = mapping.LanguageCode || '';
+                row.querySelector('.countryCode').value = mapping.CountryCode || '';
+
+                // Set up preview
+                if (mapping.CountryCode) {
+                    var flagUrl = 'https://flagsapi.com/' + mapping.CountryCode.toUpperCase() + '/flat/32.png';
+                    var img = document.createElement('img');
+                    img.src = flagUrl;
+                    img.alt = mapping.Language;
+                    img.className = 'flagImage';
+                    row.querySelector('.flagPreview').appendChild(img);
+                }
+
+                // Set up country code change to update preview
+                row.querySelector('.countryCode').addEventListener('change', function() {
+                    var preview = row.querySelector('.flagPreview');
+                    preview.innerHTML = '';
+
+                    if (this.value) {
+                        var flagUrl = 'https://flagsapi.com/' + this.value.toUpperCase() + '/flat/32.png';
+                        var img = document.createElement('img');
+                        img.src = flagUrl;
+                        img.alt = row.querySelector('.languageName').value;
+                        img.className = 'flagImage';
+                        preview.appendChild(img);
+                    }
+                });
+
+                // Set up delete button
+                row.querySelector('.btnDeleteLanguage').addEventListener('click', function() {
+                    if (confirm('Are you sure you want to remove this language?')) {
+                        row.parentNode.removeChild(row);
+                    }
+                });
+
+                view.querySelector('#languageMappingsBody').appendChild(row);
+            },
+
+            // Show the add language dialog
+            showAddLanguageDialog: function(view) {
+                var dialog = view.querySelector('#addLanguageDialog');
+                dialog.style.display = 'block';
+
+                // Set up preview
+                view.querySelector('#newCountryCode').addEventListener('input', function() {
+                    var preview = view.querySelector('#newFlagPreview');
+                    preview.innerHTML = '';
+
+                    if (this.value && this.value.length === 2) {
+                        var flagUrl = 'https://flagsapi.com/' + this.value.toUpperCase() + '/flat/32.png';
+                        var img = document.createElement('img');
+                        img.src = flagUrl;
+                        img.alt = view.querySelector('#newLanguageName').value;
+                        img.className = 'flagImage';
+                        preview.appendChild(img);
+                    }
+                });
+
+                // Set up cancel button
+                view.querySelector('#btnCancelAddLanguage').addEventListener('click', function() {
+                    dialog.style.display = 'none';
+                });
+
+                // Set up confirm button
+                view.querySelector('#btnConfirmAddLanguage').addEventListener('click', function() {
+                    var languageName = view.querySelector('#newLanguageName').value;
+                    var languageCode = view.querySelector('#newLanguageCode').value;
+                    var countryCode = view.querySelector('#newCountryCode').value;
+
+                    if (languageName && languageCode && countryCode) {
+                        FlagMyCountryConfig.addLanguageRow(view, {
+                            Language: languageName,
+                            LanguageCode: languageCode,
+                            CountryCode: countryCode
+                        });
+
+                        // Clear dialog
+                        view.querySelector('#newLanguageName').value = '';
+                        view.querySelector('#newLanguageCode').value = '';
+                        view.querySelector('#newCountryCode').value = '';
+                        view.querySelector('#newFlagPreview').innerHTML = '';
+
+                        dialog.style.display = 'none';
+                    } else {
+                        alert('Please fill out all fields.');
+                    }
+                });
+            }
+        };
+
+        document.addEventListener('viewshow', function(e) {
+            var view = Element.prototype.closest ? e.target.closest('.page') : $(e.target).closest('.page')[0];
+            FlagMyCountryConfig.load(view);
+        });
+    </script>
+
+    <style>
+        .flagImage {
+            max-width: 32px;
+            max-height: 32px;
+            border: 1px solid #ccc;
+        }
+
+        .tblLanguageMappings {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .tblLanguageMappings th,
+        .tblLanguageMappings td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .mappingsTable {
+            margin-bottom: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        #flagSizeDisplay {
+            display: inline-block;
+            margin-left: 10px;
+        }
+
+        /* Dialog styling */
+        .dialog {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1000;
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .dialogHeader {
+            margin-bottom: 15px;
+        }
+
+        .dialogContent {
+            margin-bottom: 20px;
+        }
+
+        .dialogFooter {
+            text-align: right;
+        }
+
+        .dialogFooter button {
+            margin-left: 10px;
+        }
+
+        .inputContainer {
+            margin-bottom: 15px;
+        }
+
+        .inputContainer label {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .inputContainer input {
+            width: 100%;
+            padding: 5px;
+        }
+
+        .flagPreviewContainer {
+            margin-top: 15px;
+        }
+    </style>
+</body>
+</html>
