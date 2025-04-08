@@ -26,7 +26,51 @@ jobs:
     
     - name: Verify Build Output
       run: ls -la src/FlagMyCountry/bin/Release/netstandard2.0/
+    name: Build Emby Plugin
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
     
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: 6.0.x
+    
+    - name: Restore dependencies
+      run: dotnet restore src/FlagMyCountry.sln
+    
+    - name: Build
+      run: dotnet build src/FlagMyCountry.sln -c Release --no-restore
+    
+    - name: Verify Build Output
+      run: ls -la src/FlagMyCountry/bin/Release/netstandard2.0/
+    
+    - name: Upload plugin artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: FlagMyCountry-plugin
+        path: src/FlagMyCountry/bin/Release/netstandard2.0/FlagMyCountry.dll
+        
+    - name: Create Release
+      if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+      id: create_release
+      uses: softprops/action-gh-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        files: src/FlagMyCountry/bin/Release/netstandard2.0/FlagMyCountry.dll
+        draft: false
+        prerelease: false
     - name: Upload plugin artifact
       uses: actions/upload-artifact@v2
       with:
